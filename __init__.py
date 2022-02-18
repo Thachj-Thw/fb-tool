@@ -12,6 +12,9 @@ import random
 import time
 
 
+THIS_DIR = os.path.normpath(os.path.dirname(__file__))
+ACCOUNT = os.path.join(THIS_DIR, "accounts")
+
 
 class Posts:
     def __init__(
@@ -38,9 +41,8 @@ class Account:
         self.file = name + ".pkl"
         self.n_name = ''
         self.groups = []
-        self.dir = os.path.join(os.path.dirname(os.path.normcase(__file__)), 'accounts')
         try:
-            chromedriver_autoinstaller.install(cwd=True)
+            chromedriver_autoinstaller.install(os.path.join(THIS_DIR, "driver"))
         except Exception as e:
             print(e)
         options = webdriver.ChromeOptions()
@@ -87,16 +89,16 @@ class Account:
                 self.quit()
                 raise Exception(f"Account {self.name} may not have joined the group id {group}")
             write.click()
-            self.driver.find_element_by_css_selector('textarea[class="composerInput mentions-input"]').send_keys(posts.text)
+            self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="composerInput mentions-input"]').send_keys(posts.text)
             print("Write", posts.text)
             if posts.bg:
                 print("Select background")
-                self.driver.find_elements_by_css_selector("div._6iue > div")[random.randint(1, 6)].click()
+                self.driver.find_elements(By.CSS_SELECTOR, "div._6iue > div")[random.randint(1, 6)].click()
             for img in posts.images:
                 print("Add image", img)
-                self.driver.find_element_by_css_selector("#photo_input").send_keys(img)
+                self.driver.find_element(By.CSS_SELECTOR, "#photo_input").send_keys(img)
             time.sleep(.5)
-            self.driver.find_element_by_css_selector("div.acw > div > div > button").click()
+            self.driver.find_element(By.CSS_SELECTOR, "div.acw > div > div > button").click()
             print("Submitted! waiting...")
             method = ec.visibility_of_element_located((By.CSS_SELECTOR, "div._7om2._6aij > div._4g34"))
             try:
@@ -109,16 +111,16 @@ class Account:
         if update or not self.groups:
             self.driver.get("https://m.facebook.com/groups_browse/your_groups/")
             h = 0
-            elem_groups = self.driver.find_elements_by_css_selector("div._2pip > div > a")
+            elem_groups = self.driver.find_elements(By.CSS_SELECTOR, "div._2pip > div > a")
             while len(elem_groups) > h:
                 h = len(elem_groups)
                 self.driver.execute_script('window.scrollTo(0, document.body.scrollHeight)')
                 time.sleep(0.5)
-                elem_groups = self.driver.find_elements_by_css_selector("div._2pip > div > a")
+                elem_groups = self.driver.find_elements(By.CSS_SELECTOR, "div._2pip > div > a")
             print(f"Detected {len(elem_groups)} groups in account {self.name}")
             groups = []
             for group in elem_groups:
-                name = group.find_element_by_css_selector('div[class="h3z9dlai ld7irhx5 pbevjfx6 igjjae4c"]').text
+                name = group.find_element(By.CSS_SELECTOR, 'div[class="h3z9dlai ld7irhx5 pbevjfx6 igjjae4c"]').text
                 if re_id := re.search(pattern=r"(?<=/)\d+(?=/)", string=group.get_attribute("href")):
                     _id = re_id.group()
                     print(f"Group {name} id {_id}")
@@ -129,8 +131,8 @@ class Account:
     def comment(self, id_posts: str, cmt: str) -> None:
         print(self.name, "Commenting...")
         self.driver.get("https://m.facebook.com/groups/1255689758211283/permalink/" + id_posts)
-        self.driver.find_element_by_css_selector('textarea[class="_uwx mentions-input"]').send_keys(cmt)
-        self.driver.find_element_by_css_selector("button[class='_54k8 _52jg _56bs _26vk _3lmf _3fyi _56bv _653w']").click()
+        self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="_uwx mentions-input"]').send_keys(cmt)
+        self.driver.find_element(By.CSS_SELECTOR, "button[class='_54k8 _52jg _56bs _26vk _3lmf _3fyi _56bv _653w']").click()
         method = ec.presence_of_element_located((By.CSS_SELECTOR, 'div.mentions > div[style="display: none;"]'))
         try:
             WebDriverWait(self.driver, timeout=15).until_not(method)
@@ -147,7 +149,7 @@ def new_account(
     notifications: bool = False,
     show: bool = False
 ) -> Account:
-    n = name if name else f"account{len(os.listdir(os.path.join(os.path.dirname(os.path.normcase(__file__)), 'accounts'))):0>4}"
+    n = name if name else f"account{len(os.listdir(ACCOUNT)):0>4}"
     print(n, "Creating...")
     account = Account(
         name=n,
@@ -194,7 +196,7 @@ def open_account(
         account.quit()
         raise Exception(f"Name {name} not existed")
     
-    with open(os.path.join(account.dir, account.file), mode="rb") as file:
+    with open(os.path.join(ACCOUNT, account.file), mode="rb") as file:
         data = pickle.load(file=file)
     account.uid = data["uid"]
     # add cookie
