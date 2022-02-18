@@ -42,7 +42,7 @@ class Account:
         self.n_name = ''
         self.groups = []
         try:
-            chromedriver_autoinstaller.install(os.path.join(THIS_DIR, "driver"))
+            chromedriver_autoinstaller.install(os.path.join(THIS_DIR, "drivers"))
         except Exception as e:
             print(e)
         options = webdriver.ChromeOptions()
