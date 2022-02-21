@@ -17,9 +17,8 @@ groups = action.get_groups(account, save_as="groups.json")
 print(groups)
 manager.save_and_quit(account)
 
-account = fb_auto.open_account(name="account001")
-print(account.cookies())
-account.rename("new_name")
-manager.save(account)
-account.quit()
+with fb_auto.open_account(name="account001") as account:
+    print(account.cookies())
+    account.rename("new_name")
+    manager.save(account)
 ```
