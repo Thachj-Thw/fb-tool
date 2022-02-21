@@ -1,6 +1,4 @@
-from tool import *
-
-ACCOUNT = os.path.join(os.path.dirname(os.path.normcase(__file__)), "accounts")
+from . import *
 
 
 def save(*args: Account) -> None:

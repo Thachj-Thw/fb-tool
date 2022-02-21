@@ -1,4 +1,4 @@
-from tool import *
+from . import *
 import json
 
 

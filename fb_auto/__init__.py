@@ -4,16 +4,24 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
-from typing import Union
+from typing import Union, Optional, Iterable
 import os
 import pickle
 import re
 import random
 import time
+import sys
 
 
 THIS_DIR = os.path.normpath(os.path.dirname(__file__))
-ACCOUNT = os.path.join(THIS_DIR, "accounts")
+APP = os.path.normpath(os.path.dirname(sys.executable)) if getattr(sys, 'frozen', False) else THIS_DIR
+ACCOUNT = os.path.join(APP, "accounts")
+if not os.path.exists(ACCOUNT):
+    os.mkdir(ACCOUNT)
+DRIVER = os.path.join(APP, "drivers")
+if not os.path.exists(DRIVER):
+    os.mkdir(DRIVER)
+chromedriver_autoinstaller.install(path=DRIVER)
 
 
 class Posts:
@@ -26,6 +34,15 @@ class Posts:
         self.text = text
         self.images = images
         self.bg = background if not self.images else False
+    
+    def set_text(self, text: str):
+        self.text = text
+    
+    def set_images(self, images: Union[list[str], tuple[str]]):
+        self.images = images
+    
+    def set_background(self, bg: bool):
+        self.bg = bg if not self.images else False
 
 
 
@@ -41,11 +58,8 @@ class Account:
         self.file = name + ".pkl"
         self.n_name = ''
         self.groups = []
-        try:
-            chromedriver_autoinstaller.install(os.path.join(THIS_DIR, "drivers"))
-        except Exception as e:
-            print(e)
         options = webdriver.ChromeOptions()
+        options.add_argument("--incognito")
         if not show:
             options.add_argument("--headless")
         if not images:
@@ -73,39 +87,41 @@ class Account:
         self.driver.quit()
     
     def name_existed(self) -> bool:
-        return self.file in os.listdir(self.dir)
+        return self.file in os.listdir(ACCOUNT)
 
     def rename(self, new_name) -> None:
         self.n_name = new_name
     
-    def post(self, *args: str, posts: Posts) -> None:
+    def post(self, *args: str, posts: Posts) -> Iterable[bool]:
         for group in args:
             print(group, "Posting...")
             self.driver.get("https://m.facebook.com/groups/" + group)
             method = ec.presence_of_element_located((By.CSS_SELECTOR, "div._4g34._6ber._78cq._7cdk._5i2i._52we > div"))
             try:
-                write = WebDriverWait(self.driver, timeout=5).until(method)
+                write = WebDriverWait(self.driver, timeout=3).until(method)
             except TimeoutException:
-                self.quit()
-                raise Exception(f"Account {self.name} may not have joined the group id {group}")
-            write.click()
-            self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="composerInput mentions-input"]').send_keys(posts.text)
-            print("Write", posts.text)
-            if posts.bg:
-                print("Select background")
-                self.driver.find_elements(By.CSS_SELECTOR, "div._6iue > div")[random.randint(1, 6)].click()
-            for img in posts.images:
-                print("Add image", img)
-                self.driver.find_element(By.CSS_SELECTOR, "#photo_input").send_keys(img)
-            time.sleep(.5)
-            self.driver.find_element(By.CSS_SELECTOR, "div.acw > div > div > button").click()
-            print("Submitted! waiting...")
-            method = ec.visibility_of_element_located((By.CSS_SELECTOR, "div._7om2._6aij > div._4g34"))
-            try:
-                WebDriverWait(self.driver, timeout=30).until_not(method)
-            except TimeoutException:
-                raise Exception(f"Can't post in group id {group}. Check your internet connection!")
-            print(group, "Post Successfully!")
+                yield False
+            else:
+                write.click()
+                self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="composerInput mentions-input"]').send_keys(posts.text)
+                print("Write", posts.text)
+                if posts.bg:
+                    print("Select background")
+                    self.driver.find_elements(By.CSS_SELECTOR, "div._6iue > div")[random.randint(1, 6)].click()
+                for img in posts.images:
+                    print("Add image", img)
+                    self.driver.find_element(By.CSS_SELECTOR, "#photo_input").send_keys(img)
+                time.sleep(.5)
+                self.driver.find_element(By.CSS_SELECTOR, "div.acw > div > div > button").click()
+                print("Submitted! waiting...")
+                time.sleep(1)
+                method = ec.visibility_of_element_located((By.CSS_SELECTOR, "div._7om2._6aij > div._4g34"))
+                try:
+                    WebDriverWait(self.driver, timeout=30).until_not(method)
+                except TimeoutException:
+                    yield False
+                yield True
+                print(group, "Post Successfully!")
     
     def list_groups(self, update: bool = False) -> list[dict]:
         if update or not self.groups:
@@ -128,27 +144,31 @@ class Account:
             self.groups = groups
         return self.groups
 
-    def comment(self, id_posts: str, cmt: str) -> None:
+    def comment(self, id_posts: str, cmt: str) -> bool:
         print(self.name, "Commenting...")
-        self.driver.get("https://m.facebook.com/groups/1255689758211283/permalink/" + id_posts)
-        self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="_uwx mentions-input"]').send_keys(cmt)
-        self.driver.find_element(By.CSS_SELECTOR, "button[class='_54k8 _52jg _56bs _26vk _3lmf _3fyi _56bv _653w']").click()
-        method = ec.presence_of_element_located((By.CSS_SELECTOR, 'div.mentions > div[style="display: none;"]'))
         try:
+            self.driver.get("https://m.facebook.com/groups/1255689758211283/permalink/" + id_posts)
+            self.driver.find_element(By.CSS_SELECTOR, 'textarea[class="_uwx mentions-input"]').send_keys(cmt)
+            self.driver.find_element(By.CSS_SELECTOR, "button[class='_54k8 _52jg _56bs _26vk _3lmf _3fyi _56bv _653w']").click()
+            method = ec.presence_of_element_located((By.CSS_SELECTOR, 'div.mentions > div[style="display: none;"]'))
             WebDriverWait(self.driver, timeout=15).until_not(method)
         except TimeoutException:
-            raise Exception(self.name + " Comment Fail! Check your internet connection!")
+            return False
+        except Exception as e:
+            print(e)
+            return False
         print(self.name, "Commented!")
+        return True
 
 
 
 def new_account(
     cookies: str, 
     name: str = '',
-    images: bool = True,
+    images: bool = False,
     notifications: bool = False,
     show: bool = False
-) -> Account:
+) -> Optional[Account]:
     n = name if name else f"account{len(os.listdir(ACCOUNT)):0>4}"
     print(n, "Creating...")
     account = Account(
@@ -163,16 +183,14 @@ def new_account(
             n, v = cookie.split("=")
             account.driver.add_cookie({"name": n, "value": v})
     except Exception as e:
-        account.quit()
-        raise Exception(f"Invalid cookies Error: {e}")
-    account.driver.refresh()
+        return account.quit()
+    account.driver.get("https://m.facebook.com/home.php")
     # Check login
     method = ec.presence_of_element_located((By.CSS_SELECTOR, "div._5xu4 > a"))
     try:
-        home = WebDriverWait(driver=account.driver, timeout=10).until(method)
+        home = WebDriverWait(driver=account.driver, timeout=3).until(method)
     except TimeoutException:
-        account.quit()
-        raise Exception("Login fail!")
+        return account.quit()
     print("Login Successfully!")
     if _id := re.search(pattern=r"(?<=com/).+?(?=[?])", string=home.get_attribute("href")):
         account.uid = _id.group()
@@ -181,10 +199,10 @@ def new_account(
 
 def open_account(
     name: str,
-    images: bool = True,
+    images: bool = False,
     notifications: bool = False,
     show: bool = False
-) -> Account:
+) -> Optional[Account]:
     print(name, "Opening...")
     account = Account(
         name=name, 
@@ -204,13 +222,12 @@ def open_account(
     account.driver.get("https://m.facebook.com")
     for cookie in cookies:
         account.driver.add_cookie(cookie)
-    account.driver.refresh()
+    account.driver.get("https://m.facebook.com/home.php")
     # Check Login
     method = ec.presence_of_element_located((By.CSS_SELECTOR, "div._5xu4 > a"))
     try:
         WebDriverWait(driver=account.driver, timeout=10).until(method)
     except TimeoutException:
-        account.quit()
-        raise Exception("Cookies died!")
+        return account.quit()
     print("Successfully!")
     return account
